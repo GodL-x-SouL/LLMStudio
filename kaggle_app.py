@@ -146,21 +146,14 @@ THEME = gr.themes.Soft(
 
 # ── Tab: Chat ──
 
-def _chat_history_to_list(session_id: str) -> list[tuple[str | None, str | None]]:
+def _chat_history_to_list(session_id: str) -> list[dict]:
     if not session_id:
         return []
     msgs = chat_store.list_messages(session_id)
-    pairs: list[tuple[str | None, str | None]] = []
+    result: list[dict] = []
     for m in msgs:
-        if m.role == "user":
-            pairs.append((m.content, None))
-        elif m.role == "assistant":
-            if pairs and pairs[-1][1] is None:
-                prev = pairs[-1]
-                pairs[-1] = (prev[0], m.content)
-            else:
-                pairs.append((None, m.content))
-    return pairs
+        result.append({"role": m.role, "content": m.content})
+    return result
 
 
 def _sessions_table() -> list[list[str]]:
@@ -197,7 +190,8 @@ async def _send_msg(message: str, history: list, sid: str, sp: str, temp: float,
     chat_store.add_message(sid, "user", message)
     if history is None:
         history = []
-    history.append((message, ""))
+    history.append({"role": "user", "content": message})
+    history.append({"role": "assistant", "content": ""})
     yield history, sid
 
     params = {"temperature": temp, "top_p": top_p, "top_k": top_k, "max_tokens": max_tok, "repetition_penalty": rep_pen}
@@ -207,7 +201,7 @@ async def _send_msg(message: str, history: list, sid: str, sp: str, temp: float,
     full = ""
     async for chunk in rm.generate_stream(msg_list, [], params):
         full += chunk
-        history[-1] = (message, full)
+        history[-1] = {"role": "assistant", "content": full}
         yield history, sid
 
     chat_store.add_message(sid, "assistant", full)
@@ -380,7 +374,7 @@ def _runtime_status() -> str:
 
 # ── Build ──
 
-with gr.Blocks(title="Local LLM Studio \u2014 Kaggle Edition") as app:
+with gr.Blocks(title="Local LLM Studio \u2014 Kaggle Edition", theme=THEME) as app:
 
     gr.HTML("""<div class="header-title"><span class="logo">\u25c6 Local LLM Studio</span><span class="sub">Kaggle Edition</span></div>""")
     runtime_md = gr.Markdown(f"**Runtime:** {_runtime_status()}")
@@ -402,7 +396,7 @@ with gr.Blocks(title="Local LLM Studio \u2014 Kaggle Edition") as app:
                     )
                 with gr.Column(scale=3):
                     gr.Markdown("### Chat")
-                    chatbot = gr.Chatbot(height=460, label="Chat")
+                    chatbot = gr.Chatbot(height=460, label="Chat", type="messages")
                     with gr.Row():
                         msg_box = gr.Textbox(label="", placeholder="Type a message\u2026", scale=5, show_label=False)
                         send_btn = gr.Button("Send", variant="primary", scale=1, elem_id="send-btn")
@@ -562,4 +556,4 @@ if __name__ == "__main__":
     parser.add_argument("--host", type=str, default="0.0.0.0")
     parser.add_argument("--share", action="store_true", default=True)
     args = parser.parse_args()
-    app.launch(server_name=args.host, server_port=args.port, share=args.share, show_error=True, theme=THEME, css=CSS)
+    app.launch(server_name=args.host, server_port=args.port, share=args.share, show_error=True, css=CSS)

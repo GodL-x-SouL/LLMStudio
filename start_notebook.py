@@ -35,8 +35,8 @@ def main():
     print_banner("Launching Local LLM Studio (Kaggle Edition)")
     print("  Opening Gradio UI \u2014 check the output below for the public URL.\n")
 
-    from kaggle_app import app, THEME, CSS
-    app.launch(server_name="0.0.0.0", server_port=7860, share=True, show_error=True, theme=THEME, css=CSS)
+    from kaggle_app import app, CSS
+    app.launch(server_name="0.0.0.0", server_port=7860, share=True, show_error=True, css=CSS)
 
 
 if __name__ == "__main__":

@@ -397,7 +397,6 @@ with gr.Blocks(title="Local LLM Studio \u2014 Kaggle Edition") as app:
                     sessions_tbl = gr.Dataframe(
                         headers=["Title", "ID", ""],
                         datatype=["str", "str", "str"],
-                        column_count=(3, "fixed"),
                         interactive=False,
                         max_height=460,
                     )

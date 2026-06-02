@@ -17,25 +17,20 @@ A Gradio-based WebUI for discovering, downloading, loading, and chatting with LL
 ## Run on Kaggle
 
 1. Create a new Kaggle notebook (Python + GPU/TPU accelerator optional but recommended)
-2. In the first cell, clone the repo:
+2. Clone this repo and launch:
 
 ```python
-!git clone https://github.com/YOUR_USERNAME/local-llm-studio.git
-%cd local-llm-studio
-```
-
-3. In the next cell, install deps and launch:
-
-```python
+!git clone https://github.com/<your-username>/LLMStudio.git
+%cd LLMStudio
 !pip install -q -r backend/requirements.txt
 !python start_notebook.py
 ```
 
-Or paste everything into one cell:
+Or paste into one cell:
 
 ```python
-!git clone https://github.com/YOUR_USERNAME/local-llm-studio.git
-%cd local-llm-studio
+!git clone https://github.com/<your-username>/LLMStudio.git
+%cd LLMStudio
 !pip install -q -r backend/requirements.txt
 from kaggle_app import app
 app.launch(share=True)
@@ -47,8 +42,8 @@ A **public Gradio share link** will appear in the output. Open it in your browse
 
 ```bash
 # Clone
-git clone https://github.com/YOUR_USERNAME/local-llm-studio.git
-cd local-llm-studio
+git clone https://github.com/<your-username>/LLMStudio.git
+cd LLMStudio
 
 # Set up virtual env (recommended)
 python -m venv gradio-env

@@ -374,7 +374,7 @@ def _runtime_status() -> str:
 
 # ── Build ──
 
-with gr.Blocks(title="Local LLM Studio \u2014 Kaggle Edition", theme=THEME) as app:
+with gr.Blocks(title="Local LLM Studio \u2014 Kaggle Edition", theme=THEME, css=CSS) as app:
 
     gr.HTML("""<div class="header-title"><span class="logo">\u25c6 Local LLM Studio</span><span class="sub">Kaggle Edition</span></div>""")
     runtime_md = gr.Markdown(f"**Runtime:** {_runtime_status()}")
@@ -556,4 +556,4 @@ if __name__ == "__main__":
     parser.add_argument("--host", type=str, default="0.0.0.0")
     parser.add_argument("--share", action="store_true", default=True)
     args = parser.parse_args()
-    app.launch(server_name=args.host, server_port=args.port, share=args.share, show_error=True, css=CSS)
+    app.launch(server_name=args.host, server_port=args.port, share=args.share, show_error=True)

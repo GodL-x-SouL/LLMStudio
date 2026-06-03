@@ -13,6 +13,7 @@ import time
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent
+sys.path.insert(0, str(PROJECT_ROOT / "backend"))
 
 
 def _check_cloudflared() -> str | None:
@@ -89,8 +90,8 @@ def main():
     print("  Local LLM Studio — Kaggle Edition")
     print("=" * 56)
 
-    from backend.app.core.config import ensure_runtime_dirs
-    from backend.app.core.database import initialize_database
+    from app.core.config import ensure_runtime_dirs
+    from app.core.database import initialize_database
     ensure_runtime_dirs()
     initialize_database()
 
@@ -103,7 +104,7 @@ def main():
     print(f"\n  Local URL: http://localhost:{port}\n")
 
     import uvicorn
-    from backend.app.main import app
+    from app.main import app
     uvicorn.run(app, host=host, port=port, log_level="info")
 
     if tunnel:

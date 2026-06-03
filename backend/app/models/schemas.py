@@ -99,6 +99,7 @@ class LocalModel(BaseModel):
 class DownloadCreate(BaseModel):
     repo_id: str
     revision: str | None = None
+    files: list[str] | None = None  # specific files to download; None = all
 
 
 class DownloadJob(BaseModel):

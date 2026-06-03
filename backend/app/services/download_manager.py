@@ -24,8 +24,8 @@ class DownloadManager:
         self._cancelled: set[str] = set()
         self._lock = asyncio.Lock()
 
-    async def create(self, repo_id: str, revision: str | None = None) -> DownloadJob:
-        size = repo_size(repo_id, revision)
+    async def create(self, repo_id: str, revision: str | None = None, files: list[str] | None = None) -> DownloadJob:
+        size = repo_size(repo_id, revision, files)
         if not size.allowed:
             raise HTTPException(
                 status_code=413,
@@ -41,6 +41,7 @@ class DownloadManager:
         target_dir = resolve_inside(settings.model_dir, safe_repo_dir_name(repo_id))
         target_dir.mkdir(parents=True, exist_ok=True)
         (target_dir / ".source_repo").write_text(repo_id, encoding="utf-8")
+        (target_dir / ".selected_files").write_text(",".join(files or []), encoding="utf-8")
         now = utc_now()
         with db() as connection:
             connection.execute(
@@ -67,7 +68,7 @@ class DownloadManager:
                     now,
                 ),
             )
-        log("INFO", "downloads", f"Queued download for {repo_id}", {"job_id": job_id, "bytes": size.total_size_bytes})
+        log("INFO", "downloads", f"Queued download for {repo_id}", {"job_id": job_id, "bytes": size.total_size_bytes, "files": files or "all"})
         await self._start(job_id)
         return self.get(job_id)
 

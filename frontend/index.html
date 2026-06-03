@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Local LLM Studio — Kaggle Edition</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <nav id="topbar">
+    <div class="topbar-left">
+      <span class="logo">&#9670; Local LLM Studio</span>
+      <span class="badge">Kaggle Edition</span>
+    </div>
+    <div class="topbar-right">
+      <span id="runtime-indicator" class="runtime-badge idle">Idle</span>
+    </div>
+  </nav>
+
+  <div id="tabs">
+    <button class="tab active" data-tab="chat">&#128172; Chat</button>
+    <button class="tab" data-tab="models">&#129302; Models</button>
+    <button class="tab" data-tab="downloads">&#128229; Downloads</button>
+    <button class="tab" data-tab="hardware">&#128421; Hardware</button>
+    <button class="tab" data-tab="settings">&#9881; Settings</button>
+    <button class="tab" data-tab="logs">&#128203; Logs</button>
+  </div>
+
+  <main id="content">
+    <!-- CHAT -->
+    <section id="tab-chat" class="tab-content active">
+      <div class="chat-layout">
+        <aside class="chat-sidebar">
+          <h3>Sessions</h3>
+          <div class="session-form">
+            <input type="text" id="new-session-title" placeholder="Session title&hellip;" />
+            <button id="create-session" class="btn primary" title="New session">+</button>
+          </div>
+          <div class="session-list" id="session-list"></div>
+        </aside>
+        <div class="chat-main">
+          <h3>Chat</h3>
+          <div class="chat-messages" id="chat-messages"></div>
+          <div class="chat-input-row">
+            <input type="text" id="chat-input" placeholder="Type a message&hellip;" />
+            <button id="send-btn" class="btn primary">Send</button>
+          </div>
+          <details class="gen-params">
+            <summary>Generation Parameters</summary>
+            <div class="params-grid">
+              <label>System Prompt <textarea id="sp" rows="2" placeholder="You are a helpful assistant&hellip;"></textarea></label>
+              <label>Temperature <input type="range" id="temp" min="0" max="2" step="0.05" value="0.7" /></label>
+              <label>Top P <input type="range" id="top-p" min="0" max="1" step="0.05" value="0.9" /></label>
+              <label>Top K <input type="number" id="top-k" min="1" max="200" value="40" /></label>
+              <label>Max Tokens <input type="number" id="max-tok" min="64" max="8192" step="64" value="1024" /></label>
+              <label>Rep. Penalty <input type="range" id="rep-pen" min="1" max="2" step="0.01" value="1.05" /></label>
+            </div>
+          </details>
+        </div>
+      </div>
+    </section>
+
+    <!-- MODELS -->
+    <section id="tab-models" class="tab-content">
+      <div class="models-layout">
+        <div class="models-col">
+          <h3>Hugging Face</h3>
+          <div class="row"><input type="text" id="hf-query" placeholder="Search models&hellip;" /><button id="hf-search" class="btn primary">&#128269;</button></div>
+          <div class="row">
+            <select id="hf-task"><option value="">All Tasks</option><option>text-generation</option><option>image-text-to-text</option><option>instruction</option></select>
+            <select id="hf-sort"><option>downloads</option><option>likes</option><option>trending</option><option>last_modified</option></select>
+          </div>
+          <div class="table-wrap"><table id="hf-table"><thead><tr><th>Model ID</th><th>Task</th><th>Size</th><th>Downloads</th><th>Likes</th><th>Updated</th><th>Files</th></tr></thead><tbody></tbody></table></div>
+          <div id="hf-files-panel" class="files-panel" style="display:none">
+            <div class="files-panel-header">
+              <span id="hf-files-repo"></span>
+              <button id="hf-files-close" class="btn" style="padding:2px 8px">&times;</button>
+            </div>
+            <div class="table-wrap"><table id="hf-files-table"><thead><tr><th>File</th><th>Size</th><th></th></tr></thead><tbody></tbody></table></div>
+          </div>
+          <div class="row">
+            <input type="text" id="dl-repo" placeholder="repo_id to download" />
+            <button id="dl-btn" class="btn primary">Download All</button>
+          </div>
+          <div id="dl-status" class="status-msg"></div>
+        </div>
+        <div class="models-col">
+          <h3>Local Models</h3>
+          <div class="row">
+            <button id="scan-btn" class="btn">Scan</button>
+            <button id="unload-btn" class="btn">Unload</button>
+          </div>
+          <div class="table-wrap"><table id="local-table"><thead><tr><th>Name</th><th>Arch</th><th>Params</th><th>Quant</th><th>Size</th><th>Compat</th><th>ID</th></tr></thead><tbody></tbody></table></div>
+          <div class="row">
+            <input type="text" id="load-id" placeholder="Model ID to load" />
+            <button id="load-btn" class="btn primary">Load</button>
+          </div>
+          <div id="load-status" class="status-msg"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- DOWNLOADS -->
+    <section id="tab-downloads" class="tab-content">
+      <h3>Downloads</h3>
+      <div class="table-wrap"><table id="dl-table"><thead><tr><th>Model</th><th>Status</th><th>Prog.</th><th>Downloaded</th><th>Total</th><th>Speed</th><th>ETA</th><th>Job ID</th></tr></thead><tbody></tbody></table></div>
+      <div class="row">
+        <input type="text" id="dl-jid" placeholder="Job ID" />
+        <button id="pause-btn" class="btn">Pause</button>
+        <button id="resume-btn" class="btn">Resume</button>
+        <button id="cancel-btn" class="btn">Cancel</button>
+        <button id="retry-btn" class="btn">Retry</button>
+      </div>
+      <div id="dl-action-status" class="status-msg"></div>
+    </section>
+
+    <!-- HARDWARE -->
+    <section id="tab-hardware" class="tab-content">
+      <h3>Hardware Monitor</h3>
+      <button id="hw-refresh" class="btn">Refresh</button>
+      <div class="hw-grid">
+        <div><label>CPU</label><span id="hw-cpu"></span></div>
+        <div><label>CPU Usage</label><span id="hw-cpu-usage"></span></div>
+        <div><label>RAM Total</label><span id="hw-ram-total"></span></div>
+        <div><label>RAM Available</label><span id="hw-ram-avail"></span></div>
+        <div><label>RAM Usage</label><span id="hw-ram-usage"></span></div>
+        <div><label>GPUs</label><span id="hw-gpu-count"></span></div>
+        <div><label>VRAM Total</label><span id="hw-vram-total"></span></div>
+        <div><label>VRAM Available</label><span id="hw-vram-avail"></span></div>
+      </div>
+      <div class="table-wrap"><table id="hw-gpu-table"><thead><tr><th>GPU</th><th>Util</th><th>VRAM Total</th><th>VRAM Free</th><th>Vendor</th><th>CUDA</th></tr></thead><tbody></tbody></table></div>
+    </section>
+
+    <!-- SETTINGS -->
+    <section id="tab-settings" class="tab-content">
+      <h3>Settings</h3>
+      <div class="settings-grid">
+        <label>Download Location <input type="text" id="s-loc" /></label>
+        <label>Cache Size (GB) <input type="number" id="s-cache" /></label>
+        <label>Default Backend <select id="s-backend"><option>auto</option><option>llama.cpp</option><option>transformers</option><option>vLLM</option><option>ExLlamaV2</option></select></label>
+        <label>Temperature <input type="range" id="s-temp" min="0" max="2" step="0.05" /></label>
+        <label>Top P <input type="range" id="s-top-p" min="0" max="1" step="0.05" /></label>
+        <label>Top K <input type="number" id="s-top-k" min="1" max="200" /></label>
+        <label>Max Tokens <input type="number" id="s-max-tok" min="64" max="8192" step="64" /></label>
+        <label>Rep. Penalty <input type="range" id="s-rep-pen" min="1" max="2" step="0.01" /></label>
+      </div>
+      <button id="s-save" class="btn primary">Save</button>
+      <div id="s-status" class="status-msg"></div>
+    </section>
+
+    <!-- LOGS -->
+    <section id="tab-logs" class="tab-content">
+      <h3>Logs</h3>
+      <div class="row">
+        <select id="log-level"><option value="">All Levels</option><option>INFO</option><option>WARN</option><option>ERROR</option><option>DEBUG</option></select>
+        <button id="log-refresh" class="btn">Refresh</button>
+      </div>
+      <div class="table-wrap"><table id="log-table"><thead><tr><th>Level</th><th>Source</th><th>Message</th><th>Timestamp</th></tr></thead><tbody></tbody></table></div>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>

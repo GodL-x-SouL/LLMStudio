@@ -16,12 +16,7 @@ class Settings:
     model_dir: Path = Path(os.getenv("LOCAL_LLM_MODEL_DIR", PROJECT_ROOT / "temp" / "models"))
     log_dir: Path = Path(os.getenv("LOCAL_LLM_LOG_DIR", PROJECT_ROOT / "logs"))
     max_download_bytes: int = 50 * 1024**3
-    allowed_origins: tuple[str, ...] = (
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        "http://localhost:3001",
-        "http://127.0.0.1:3001",
-    )
+    allowed_origins: tuple[str, ...] = ("*",)
 
     @property
     def max_download_gb(self) -> int:

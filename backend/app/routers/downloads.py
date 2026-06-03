@@ -16,7 +16,7 @@ def list_downloads() -> list[DownloadJob]:
 
 @router.post("", response_model=DownloadJob, status_code=202)
 async def create_download(payload: DownloadCreate) -> DownloadJob:
-    return await download_manager.create(payload.repo_id, payload.revision)
+    return await download_manager.create(payload.repo_id, payload.revision, payload.files)
 
 
 @router.post("/{job_id}/pause", response_model=DownloadJob)

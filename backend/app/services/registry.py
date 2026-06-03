@@ -8,14 +8,14 @@ from typing import Any
 
 from app.core.config import settings
 from app.core.database import db, dumps, loads, utc_now
-from app.models.schemas import LocalModel
+from app.models.schemas import HardwareSnapshot, LocalModel
 from app.services.compatibility import estimate_model_compatibility
 from app.services.hardware import get_hardware_snapshot
 
 
 MODEL_FILE_EXTENSIONS = {".gguf", ".safetensors", ".bin", ".pt", ".pth"}
 VISION_HINTS = ("vision", "vl", "vila", "llava", "minicpm-v", "internvl", "qwen2-vl", "gemma-3")
-QUANT_PATTERN = re.compile(r"\b(q[2-8](?:_[a-z0-9]+)?|f16|fp16|bf16|int8|int4)\b", re.IGNORECASE)
+QUANT_PATTERN = re.compile(r"\b(q[2-8](?:_[a-z0-9]+(?:_[a-z0-9]+)*)?|f16|fp16|bf16|int8|int4)\b", re.IGNORECASE)
 PARAM_PATTERN = re.compile(r"(\d+(?:\.\d+)?)\s*([bm])", re.IGNORECASE)
 
 
@@ -93,6 +93,72 @@ def _model_id(path: Path) -> str:
     return hashlib.sha256(str(path.resolve()).encode("utf-8")).hexdigest()[:16]
 
 
+def _make_file_entry(file_path: Path, candidate: Path, hardware: HardwareSnapshot, config: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Create a model record for a single model file."""
+    if config is None:
+        config = _read_json(candidate / "config.json") if candidate.is_dir() else {}
+    source_repo = None
+    marker = candidate / ".source_repo"
+    if marker.exists():
+        source_repo = marker.read_text(encoding="utf-8").strip() or None
+    size = file_path.stat().st_size
+    quant = _detect_quantization(file_path.name, [file_path])
+    params = _detect_params(file_path.name, config) or _detect_params(candidate.name, config)
+    arch = _detect_architecture(config, file_path.name)
+    vision = _detect_vision(config, file_path.name, [])
+    record = {
+        "id": _model_id(file_path),
+        "name": f"{candidate.name} ({quant})" if quant else file_path.stem,
+        "source_repo": source_repo,
+        "path": str(file_path.resolve()),
+        "size_bytes": size,
+        "architecture": arch,
+        "context_length": _detect_context(config),
+        "parameter_count": params,
+        "quantization": quant,
+        "vision_support": vision,
+        "backend": "llama.cpp" if file_path.suffix.lower() == ".gguf" else _detect_backend(candidate),
+        "license": config.get("license"),
+        "tags": [],
+    }
+    record["compatibility"] = estimate_model_compatibility(record, hardware).model_dump()
+    return record
+
+
+def _split_model_files(candidate: Path, hardware: HardwareSnapshot) -> list[dict[str, Any]]:
+    """Split a directory into per-file model entries when selective files were downloaded."""
+    if not candidate.is_dir():
+        return []
+
+    sel_marker = candidate / ".selected_files"
+    selected = None
+    if sel_marker.exists():
+        raw = sel_marker.read_text(encoding="utf-8").strip()
+        selected = set(raw.split(",")) if raw else None
+
+    config = _read_json(candidate / "config.json") if (candidate / "config.json").exists() else {}
+
+    # If specific files were selected, register each as its own model
+    if selected:
+        records = []
+        for fname in selected:
+            fp = candidate / fname
+            if fp.is_file():
+                records.append(_make_file_entry(fp, candidate, hardware, config))
+        return records
+
+    # Otherwise check for multiple GGUF files
+    gguf_files = sorted(f for f in candidate.iterdir() if f.suffix.lower() == ".gguf")
+    if len(gguf_files) >= 2:
+        return [_make_file_entry(f, candidate, hardware, config) for f in gguf_files]
+
+    # For single GGUF, also register as file-level entry
+    if len(gguf_files) == 1:
+        return [_make_file_entry(gguf_files[0], candidate, hardware, config)]
+
+    return []
+
+
 def scan_models() -> list[LocalModel]:
     settings.model_dir.mkdir(parents=True, exist_ok=True)
     hardware = get_hardware_snapshot()
@@ -103,6 +169,12 @@ def scan_models() -> list[LocalModel]:
             continue
         files = [candidate] if candidate.is_file() else [file for file in candidate.rglob("*") if file.is_file()]
         if not any(file.suffix.lower() in MODEL_FILE_EXTENSIONS or file.name == "config.json" for file in files):
+            continue
+
+        # Multi-file repos: split into per-file entries
+        multi = _split_model_files(candidate, hardware)
+        if multi:
+            discovered.extend(multi)
             continue
 
         config = _read_json(candidate / "config.json") if candidate.is_dir() else {}

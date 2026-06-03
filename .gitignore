@@ -12,7 +12,8 @@ venv/
 env/
 
 # Database
-data/
+data/*
+!data/.gitkeep
 *.db
 *.sqlite
 
@@ -21,7 +22,8 @@ temp/models/*
 !temp/models/.gitkeep
 
 # Logs
-logs/
+logs/*
+!logs/.gitkeep
 
 # Gradio cache
 .gradio/

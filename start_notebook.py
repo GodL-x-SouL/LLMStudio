@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Local LLM Studio — Kaggle Notebook Launcher
-Launches the Gradio-based UI directly in a Kaggle/Colab notebook cell.
+Launches FastAPI backend + vanilla JS SPA, tunneled via Cloudflare.
 """
 
 from __future__ import annotations
@@ -33,10 +33,10 @@ def main():
     setup_python_deps()
 
     print_banner("Launching Local LLM Studio (Kaggle Edition)")
-    print("  Opening Gradio UI \u2014 check the output below for the public URL.\n")
+    print("  Starting FastAPI backend + Cloudflare tunnel...\n")
 
-    from kaggle_app import app
-    app.launch(server_name="0.0.0.0", server_port=7860, share=True, show_error=True)
+    from kaggle_app import main as launch
+    launch()
 
 
 if __name__ == "__main__":

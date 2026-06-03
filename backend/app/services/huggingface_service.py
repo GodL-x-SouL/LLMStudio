@@ -74,13 +74,16 @@ def search_models(
         raise HTTPException(status_code=502, detail=f"Hugging Face search failed: {exc}") from exc
 
 
-def repo_size(repo_id: str, revision: str | None = None) -> RepoSizeResponse:
+def repo_size(repo_id: str, revision: str | None = None, files: list[str] | None = None) -> RepoSizeResponse:
     try:
         info = api.model_info(repo_id=repo_id, revision=revision, files_metadata=True)
     except Exception as exc:
         raise HTTPException(status_code=404, detail=f"Unable to read model metadata: {exc}") from exc
-    files = _file_breakdown(info.siblings)
-    total = sum(file.size_bytes for file in files)
+    file_breakdown = _file_breakdown(info.siblings)
+    if files:
+        selected = {f for f in files}
+        file_breakdown = [fb for fb in file_breakdown if fb.path in selected]
+    total = sum(fb.size_bytes for fb in file_breakdown)
     allowed = total <= settings.max_download_bytes
     message = "Repository is within the 50 GB download limit" if allowed else "Model exceeds maximum allowed size (50 GB)"
     return RepoSizeResponse(
@@ -90,5 +93,5 @@ def repo_size(repo_id: str, revision: str | None = None) -> RepoSizeResponse:
         max_allowed_bytes=settings.max_download_bytes,
         allowed=allowed,
         message=message,
-        files=files,
+        files=file_breakdown,
     )

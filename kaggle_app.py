@@ -123,6 +123,40 @@ def _run_uvicorn(host: str, port: int):
     uvicorn.run(app, host=host, port=port, log_level="info")
 
 
+def _ensure_llama_cpp() -> bool:
+    try:
+        import llama_cpp  # noqa: F401
+        return True
+    except ImportError:
+        pass
+    print("\n  Installing llama-cpp-python (CUDA)...")
+    import subprocess
+    env = os.environ.copy()
+    env["CMAKE_ARGS"] = "-DLLAMA_CUDA=on"
+    env["FORCE_CMAKE"] = "1"
+    try:
+        subprocess.check_call(
+            [sys.executable, "-m", "pip", "install", "llama-cpp-python"],
+            env=env, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT, timeout=300,
+        )
+        print("  llama-cpp-python installed successfully.")
+        return True
+    except Exception as e:
+        print(f"  Failed to install llama-cpp-python (CUDA): {e}")
+        print("  Trying CPU-only version...")
+        try:
+            subprocess.check_call(
+                [sys.executable, "-m", "pip", "install", "llama-cpp-python",
+                 "--extra-index-url", "https://abetlen.github.io/llama-cpp-python/whl/cpu"],
+                stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT, timeout=120,
+            )
+            print("  llama-cpp-python (CPU) installed successfully.")
+            return True
+        except Exception as e2:
+            print(f"  Failed to install CPU version: {e2}")
+            return False
+
+
 def main():
     os.environ["LOCAL_LLM_FRONTEND_DIR"] = str(PROJECT_ROOT / "frontend")
 
@@ -137,6 +171,9 @@ def main():
     from app.core.database import initialize_database
     ensure_runtime_dirs()
     initialize_database()
+
+    # Auto-install llama-cpp-python if missing
+    _ensure_llama_cpp()
 
     # Start uvicorn FIRST, before any tunnel
     print("\n  Starting server...")

@@ -104,6 +104,57 @@ class TransformersEngine(InferenceEngine):
             yield token + " "
 
 
+class LlamaCppEngine(InferenceEngine):
+    name = "llama.cpp"
+
+    def __init__(self) -> None:
+        self._llm: Any = None
+
+    async def load(self, model: LocalModel, request: RuntimeLoadRequest) -> None:
+        def _load() -> Any:
+            import llama_cpp
+            from llama_cpp import Llama
+
+            path = model.path
+            n_gpu = request.gpu_layers if request.gpu_layers is not None else -1
+            return Llama(
+                model_path=path,
+                n_ctx=request.context_length or 2048,
+                n_gpu_layers=n_gpu,
+                verbose=False,
+            )
+
+        self._llm = await asyncio.to_thread(_load)
+
+    async def unload(self) -> None:
+        self._llm = None
+
+    async def generate_stream(
+        self,
+        messages: list[dict[str, Any]],
+        attachments: list[Attachment],
+        parameters: dict[str, Any],
+    ) -> AsyncIterator[str]:
+        if self._llm is None:
+            raise RuntimeError("llama.cpp model is not loaded")
+
+        chat_messages = [{"role": m["role"], "content": m["content"]} for m in messages]
+
+        def _generate() -> str:
+            return self._llm.create_chat_completion(
+                messages=chat_messages,
+                max_tokens=int(parameters.get("max_tokens", 512)),
+                temperature=float(parameters.get("temperature", 0.7)),
+                top_p=float(parameters.get("top_p", 0.9)),
+                stream=False,
+            )["choices"][0]["message"]["content"]
+
+        text = await asyncio.to_thread(_generate)
+        for token in text.split(" "):
+            await asyncio.sleep(0)
+            yield token + " "
+
+
 class RuntimeManager:
     def __init__(self) -> None:
         self._engine: InferenceEngine = LocalEchoEngine()
@@ -158,7 +209,7 @@ class RuntimeManager:
         if backend in {"transformers", "vLLM", "ExLlamaV2"}:
             return TransformersEngine() if backend == "transformers" else LocalEchoEngine()
         if backend == "llama.cpp":
-            return LocalEchoEngine()
+            return LlamaCppEngine()
         return LocalEchoEngine()
 
     async def load(self, request: RuntimeLoadRequest) -> RuntimeStatus:

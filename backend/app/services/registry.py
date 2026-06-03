@@ -280,5 +280,11 @@ def list_models() -> list[LocalModel]:
 def get_model(model_id: str) -> LocalModel | None:
     with db() as connection:
         row = connection.execute("SELECT * FROM models WHERE id = ?", (model_id,)).fetchone()
+        if not row:
+            row = connection.execute("SELECT * FROM models WHERE name = ?", (model_id,)).fetchone()
+        if not row:
+            row = connection.execute("SELECT * FROM models WHERE source_repo = ?", (model_id,)).fetchone()
+        if not row:
+            row = connection.execute("SELECT * FROM models WHERE path LIKE ?", (f"%{model_id}%",)).fetchone()
     return _row_to_model(row) if row else None
 

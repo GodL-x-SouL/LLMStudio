@@ -282,7 +282,7 @@ async function loadLocalModels() {
     const models = await api('GET', '/models');
     const tbody = $('local-table').querySelector('tbody');
     tbody.innerHTML = models.map(m =>
-      `<tr>
+      `<tr class="local-row" data-id="${escapeHtml(m.id)}" data-name="${escapeHtml(m.name)}">
         <td>${escapeHtml(m.name)}</td>
         <td>${escapeHtml(m.architecture || '\u2014')}</td>
         <td>${escapeHtml(m.parameter_count || '\u2014')}</td>
@@ -292,6 +292,13 @@ async function loadLocalModels() {
         <td>${escapeHtml(m.id)}</td>
       </tr>`
     ).join('');
+    tbody.querySelectorAll('.local-row').forEach(el => {
+      el.addEventListener('click', () => {
+        $('load-id').value = el.dataset.id;
+        $('load-btn').click();
+      });
+      el.style.cursor = 'pointer';
+    });
   } catch (e) { console.error(e); }
 }
 
@@ -436,6 +443,7 @@ $('log-level').addEventListener('change', refreshLogs);
 function autoRefresh() {
   refreshRuntime();
   refreshDownloads();
+  loadLocalModels();
 }
 
 loadSessions();

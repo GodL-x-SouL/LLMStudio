@@ -313,8 +313,17 @@ $('load-btn').addEventListener('click', async () => {
   const mid = $('load-id').value.trim();
   if (!mid) return;
   try {
-    await api('POST', '/inference/load', { model_id: mid, backend: 'auto' });
-    $('load-status').textContent = `Loading ${mid.slice(0, 12)}...`;
+    const res = await fetch(API + '/inference/load', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model_id: mid, backend: 'auto' }),
+    });
+    const data = await res.json();
+    if (data.status === 'error') {
+      $('load-status').textContent = `Error: ${data.error || 'Failed to load model'}`;
+    } else {
+      $('load-status').textContent = 'Model loaded successfully.';
+    }
     refreshRuntime();
   } catch (e) { $('load-status').textContent = `Error: ${e.message}`; }
 });

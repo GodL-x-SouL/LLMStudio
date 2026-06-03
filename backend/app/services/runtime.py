@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator
 from typing import Any
@@ -112,17 +113,31 @@ class LlamaCppEngine(InferenceEngine):
 
     async def load(self, model: LocalModel, request: RuntimeLoadRequest) -> None:
         def _load() -> Any:
-            import llama_cpp
+            try:
+                import llama_cpp
+            except ImportError as exc:
+                raise RuntimeError(
+                    "llama-cpp-python is not installed. Run: pip install llama-cpp-python"
+                ) from exc
+
             from llama_cpp import Llama
 
             path = model.path
+            if not path or not os.path.isfile(path):
+                raise FileNotFoundError(f"Model file not found: {path}")
+
             n_gpu = request.gpu_layers if request.gpu_layers is not None else -1
-            return Llama(
-                model_path=path,
-                n_ctx=request.context_length or 2048,
-                n_gpu_layers=n_gpu,
-                verbose=False,
-            )
+            try:
+                return Llama(
+                    model_path=path,
+                    n_ctx=request.context_length or 2048,
+                    n_gpu_layers=n_gpu,
+                    verbose=False,
+                )
+            except Exception as exc:
+                raise RuntimeError(
+                    f"llama.cpp failed to load model: {exc}"
+                ) from exc
 
         self._llm = await asyncio.to_thread(_load)
 

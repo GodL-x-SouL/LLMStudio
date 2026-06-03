@@ -129,32 +129,40 @@ def _ensure_llama_cpp() -> bool:
         return True
     except ImportError:
         pass
-    print("\n  Installing llama-cpp-python (CUDA)...")
-    import subprocess
-    env = os.environ.copy()
-    env["CMAKE_ARGS"] = "-DLLAMA_CUDA=on"
-    env["FORCE_CMAKE"] = "1"
-    try:
-        subprocess.check_call(
+
+    print("\n  Installing inference engine (llama-cpp-python)...")
+
+    strategies = [
+        ("CUDA 12.4 pre-built wheel", lambda: subprocess.check_call(
+            [sys.executable, "-m", "pip", "install", "llama-cpp-python",
+             "--index-url", "https://abetlen.github.io/llama-cpp-python/whl/cu124"],
+            timeout=120)),
+        ("CUDA compile from source", lambda: subprocess.check_call(
             [sys.executable, "-m", "pip", "install", "llama-cpp-python"],
-            env=env, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT, timeout=300,
-        )
-        print("  llama-cpp-python installed successfully.")
-        return True
-    except Exception as e:
-        print(f"  Failed to install llama-cpp-python (CUDA): {e}")
-        print("  Trying CPU-only version...")
+            env={**os.environ, "CMAKE_ARGS": "-DLLAMA_CUDA=on", "FORCE_CMAKE": "1"},
+            timeout=600)),
+        ("CPU pre-built wheel", lambda: subprocess.check_call(
+            [sys.executable, "-m", "pip", "install", "llama-cpp-python",
+             "--extra-index-url", "https://abetlen.github.io/llama-cpp-python/whl/cpu"],
+            timeout=120)),
+        ("CPU compile from source", lambda: subprocess.check_call(
+            [sys.executable, "-m", "pip", "install", "llama-cpp-python"],
+            timeout=600)),
+    ]
+
+    for label, fn in strategies:
+        print(f"  Trying: {label}...")
         try:
-            subprocess.check_call(
-                [sys.executable, "-m", "pip", "install", "llama-cpp-python",
-                 "--extra-index-url", "https://abetlen.github.io/llama-cpp-python/whl/cpu"],
-                stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT, timeout=120,
-            )
-            print("  llama-cpp-python (CPU) installed successfully.")
+            fn()
+            import llama_cpp  # verify
+            print(f"  {label} succeeded.")
             return True
-        except Exception as e2:
-            print(f"  Failed to install CPU version: {e2}")
-            return False
+        except Exception as e:
+            print(f"  {label} failed: {e}")
+
+    print("  All installation strategies failed.")
+    print("  Chat will use LocalEchoEngine (echo-only) until llama-cpp-python is installed manually.")
+    return False
 
 
 def main():

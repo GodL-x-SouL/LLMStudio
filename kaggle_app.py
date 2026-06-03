@@ -1,6 +1,6 @@
 """
 Local LLM Studio — Kaggle Edition
-FastAPI backend + vanilla JS SPA frontend, tunneled via Cloudflare.
+FastAPI backend + vanilla JS SPA frontend, tunneled via Cloudflare (or localhost.run fallback).
 """
 
 from __future__ import annotations
@@ -54,13 +54,14 @@ def _install_cloudflared() -> str:
     return str(dest)
 
 
-def _start_tunnel(port: int) -> tuple[subprocess.Popen[str] | None, str | None]:
+def _start_cloudflared_tunnel(port: int) -> tuple[subprocess.Popen[str] | None, str | None]:
     cf = _check_cloudflared()
     if cf is None:
         cf = _install_cloudflared()
         if not cf:
             return None, None
-    cmd = [cf, "tunnel", "--url", f"http://localhost:{port}", "--no-autoupdate"]
+    # Force HTTP/2 — Kaggle blocks QUIC/UDP on port 7844
+    cmd = [cf, "tunnel", "--url", f"http://localhost:{port}", "--no-autoupdate", "--protocol", "http2"]
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
     url = None
     deadline = time.time() + 30
@@ -68,16 +69,58 @@ def _start_tunnel(port: int) -> tuple[subprocess.Popen[str] | None, str | None]:
         line = proc.stdout.readline()
         if line:
             print(f"  [cloudflared] {line.rstrip()}")
+            if "Failed" in line or "error" in line.lower():
+                print("  -> cloudflared encountered an error, will try fallback.")
+                return proc, None
         if "https://" in line and ".trycloudflare.com" in line:
             start = line.index("https://")
             end = line.index(".trycloudflare.com") + len(".trycloudflare.com")
             url = line[start:end]
             break
-    if url is None:
-        print("Warning: could not detect tunnel URL; check logs above.")
-    else:
-        print(f"\n  Public URL: {url}\n")
     return proc, url
+
+
+def _start_localhostrun_tunnel(port: int) -> tuple[subprocess.Popen[str] | None, str | None]:
+    """Use localhost.run (SSH-based) — no binary download needed, works on Kaggle."""
+    print("  Trying localhost.run as fallback (SSH tunnel)...")
+    ssh = ["ssh", "-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null",
+           "-R", f"80:localhost:{port}", "nokey@localhost.run"]
+    proc = subprocess.Popen(ssh, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    url = None
+    deadline = time.time() + 20
+    while time.time() < deadline:
+        line = proc.stdout.readline()
+        if line:
+            print(f"  [localhost.run] {line.rstrip()}")
+            if "https://" in line and ".localhost.run" in line:
+                start = line.index("https://")
+                rest = line[start:]
+                end = rest.index(" ") if " " in rest else len(rest)
+                url = rest[:end].rstrip()
+                break
+    return proc, url
+
+
+def _wait_for_server(host: str, port: int, timeout: float = 10) -> bool:
+    """Block until the HTTP server is reachable."""
+    import http.client
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        try:
+            c = http.client.HTTPConnection(host if host != "0.0.0.0" else "127.0.0.1", port, timeout=2)
+            c.request("GET", "/")
+            c.getresponse()
+            c.close()
+            return True
+        except Exception:
+            time.sleep(0.5)
+    return False
+
+
+def _run_uvicorn(host: str, port: int):
+    import uvicorn
+    from app.main import app
+    uvicorn.run(app, host=host, port=port, log_level="info")
 
 
 def main():
@@ -95,20 +138,45 @@ def main():
     ensure_runtime_dirs()
     initialize_database()
 
+    # Start uvicorn FIRST, before any tunnel
+    print("\n  Starting server...")
+    uvicorn_thread = threading.Thread(target=_run_uvicorn, args=(host, port), daemon=True)
+    uvicorn_thread.start()
+
+    if not _wait_for_server("127.0.0.1", port):
+        print(f"  Error: server did not start on port {port}")
+        sys.exit(1)
+    print(f"  Server is up on http://localhost:{port}")
+
     tunnel = None
     use_tunnel = os.getenv("DISABLE_TUNNEL", "").lower() not in ("1", "true", "yes")
     if use_tunnel:
-        print("\n  Starting Cloudflare tunnel...")
-        tunnel, public_url = _start_tunnel(port)
+        print("\n  Starting tunnel (cloudflared)...")
+        tunnel, public_url = _start_cloudflared_tunnel(port)
+
+        if public_url is None and tunnel is not None:
+            tunnel.terminate()
+            tunnel = None
+            print("\n  cloudflared failed, trying localhost.run fallback...")
+            tunnel, public_url = _start_localhostrun_tunnel(port)
+
+        if public_url:
+            print(f"\n  {'=' * 50}")
+            print(f"  Public URL: {public_url}")
+            print(f"  {'=' * 50}")
+        else:
+            print("\n  All tunnel methods failed. Access via localhost only.")
 
     print(f"\n  Local URL: http://localhost:{port}\n")
 
-    import uvicorn
-    from app.main import app
-    uvicorn.run(app, host=host, port=port, log_level="info")
-
-    if tunnel:
-        tunnel.terminate()
+    try:
+        while True:
+            time.sleep(10)
+    except KeyboardInterrupt:
+        print("\n  Shutting down...")
+    finally:
+        if tunnel:
+            tunnel.terminate()
 
 
 if __name__ == "__main__":
